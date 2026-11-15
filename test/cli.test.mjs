@@ -14,10 +14,14 @@ const labelsPdf = path.join(fixtures, 'labels-40x30-3pages.pdf');
 const a4Pdf = path.join(fixtures, 'a4.pdf');
 
 const STUB_PRINTER = `// Temporary stub used only by the CLI test suite (no hardware).
+import fs from 'node:fs';
 export async function encodePage(page) {
   return { page: page.page };
 }
-export function createPrinterSession() {
+export function createPrinterSession(opts) {
+  if (process.env.SPOOLMAN_OPTS_FILE) {
+    fs.appendFileSync(process.env.SPOOLMAN_OPTS_FILE, JSON.stringify(opts) + '\\n');
+  }
   return {
     async connect() {},
     async disconnect() {},
@@ -164,6 +168,8 @@ test('--help prints usage with NIIMBOT B1 and exits 0 without importing native m
   assert.match(res.stdout, /NIIMBOT B1/);
   assert.doesNotMatch(res.stdout, /Brother/);
   assert.match(res.stdout, /--dry-run/);
+  assert.match(res.stdout, /--verbose/);
+  assert.match(res.stdout, /--legacy-usb-connect/);
   assert.match(res.stdout, /Exit codes:/);
   assert.equal(res.stderr, '');
 });
@@ -280,6 +286,68 @@ test('full normal print with --yes (non-TTY) prints sequentially through the ada
   assert.match(res.stdout, /density: 3/);
   assert.match(res.stdout, /printed page 1/);
   assert.match(res.stdout, /successfully printed 1 label\(s\)/);
+});
+
+test('normal print with --verbose passes a verbose flag through to createPrinterSession', () => {
+  const parent = makeParentDir();
+  const stubPath = path.join(parent, 'stub-printer.mjs');
+  fs.writeFileSync(stubPath, STUB_PRINTER, 'utf8');
+  const optsFile = path.join(parent, 'opts.txt');
+
+  const res = run([labelsPdf, '--yes', '--pages', '1', '--verbose'], {
+    env: { SPOOLMAN_B1_ADAPTER: stubPath, SPOOLMAN_OPTS_FILE: optsFile },
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /successfully printed 1 label\(s\)/);
+
+  const lines = fs.readFileSync(optsFile, 'utf8').trim().split('\n');
+  const opts = JSON.parse(lines[lines.length - 1]);
+  assert.equal(opts.verbose, true, '--verbose must reach createPrinterSession');
+  assert.equal(opts.legacyUsbConnect, false, 'legacyUsbConnect defaults to false');
+  assert.equal(opts.port, '/dev/ttyACM0');
+  assert.equal(opts.density, 3);
+});
+
+test('normal print with --legacy-usb-connect passes the flag through to createPrinterSession', () => {
+  const parent = makeParentDir();
+  const stubPath = path.join(parent, 'stub-printer.mjs');
+  fs.writeFileSync(stubPath, STUB_PRINTER, 'utf8');
+  const optsFile = path.join(parent, 'opts.txt');
+
+  const res = run([labelsPdf, '--yes', '--pages', '1', '--legacy-usb-connect'], {
+    env: { SPOOLMAN_B1_ADAPTER: stubPath, SPOOLMAN_OPTS_FILE: optsFile },
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /successfully printed 1 label\(s\)/);
+
+  const lines = fs.readFileSync(optsFile, 'utf8').trim().split('\n');
+  const opts = JSON.parse(lines[lines.length - 1]);
+  assert.equal(opts.legacyUsbConnect, true, '--legacy-usb-connect must reach createPrinterSession');
+  assert.equal(opts.verbose, false, 'verbose defaults to false');
+  assert.equal(opts.port, '/dev/ttyACM0');
+  assert.equal(opts.density, 3);
+});
+
+test('dry-run with --verbose still never imports the adapter (bogus module path)', () => {
+  const parent = makeParentDir();
+  const out = path.join(parent, 'preview');
+  const res = run([labelsPdf, '--dry-run', '--pages', '1', '--verbose', '--output-dir', out], {
+    env: { SPOOLMAN_B1_ADAPTER: '/tmp/spoolman-no-adapter.mjs' },
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /dry-run: rendered 1 preview/);
+  assert.equal(fs.existsSync(path.join(out, 'label-1.png')), true);
+});
+
+test('dry-run with --legacy-usb-connect still never imports the adapter (bogus module path)', () => {
+  const parent = makeParentDir();
+  const out = path.join(parent, 'preview');
+  const res = run([labelsPdf, '--dry-run', '--pages', '1', '--legacy-usb-connect', '--output-dir', out], {
+    env: { SPOOLMAN_B1_ADAPTER: '/tmp/spoolman-no-adapter.mjs' },
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /dry-run: rendered 1 preview/);
+  assert.equal(fs.existsSync(path.join(out, 'label-1.png')), true);
 });
 
 test('dry-run errors EEXIST and preserves a sentinel when the output directory appears during PDF preflight', () => {

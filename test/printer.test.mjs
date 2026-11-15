@@ -122,6 +122,8 @@ function makeFakeClient(meta, { connectDeferred, connectError } = {}) {
     disconnects: 0,
     cancelled: 0,
     tasks: [],
+    debug: undefined,
+    sequence: [],
   };
   const protocol = {
     setPacketTimeout(value) {
@@ -144,8 +146,13 @@ function makeFakeClient(meta, { connectDeferred, connectError } = {}) {
     setFetchRfidOnPrintEnd(value) {
       calls.rfid = value;
     },
+    setDebug(value) {
+      calls.debug = value;
+      calls.sequence.push('setDebug');
+    },
     async connect() {
       calls.connected = true;
+      calls.sequence.push('connect');
       if (connectDeferred) {
         return connectDeferred.promise;
       }
@@ -191,6 +198,38 @@ describe('createPrinterSession', () => {
     assert.equal(calls.connected, true);
   });
 
+  test('verbose enables the public setDebug(true) before connect', async () => {
+    const { client, calls } = makeFakeClient({ model: PrinterModel.B1 });
+    const session = createPrinterSession({
+      port: 'port',
+      density: 3,
+      verbose: true,
+      clientFactory: () => client,
+    });
+
+    await session.connect();
+
+    assert.equal(calls.debug, true, 'verbose must enable debug on the client');
+    const setDebugAt = calls.sequence.indexOf('setDebug');
+    const connectAt = calls.sequence.indexOf('connect');
+    assert.ok(setDebugAt !== -1, 'setDebug must be called');
+    assert.ok(setDebugAt < connectAt, 'setDebug must be called before the native connect');
+  });
+
+  test('verbose defaults to false and does not call setDebug', async () => {
+    const { client, calls } = makeFakeClient({ model: PrinterModel.B1 });
+    const session = createPrinterSession({
+      port: 'port',
+      density: 3,
+      clientFactory: () => client,
+    });
+
+    await session.connect();
+
+    assert.equal(calls.debug, undefined, 'setDebug must not be called by default');
+    assert.ok(!calls.sequence.includes('setDebug'));
+  });
+
   test('accepts a B1 device', async () => {
     const { client } = makeFakeClient({ model: PrinterModel.B1 });
     const session = createPrinterSession({ port: 'port', density: 2, clientFactory: () => client });
@@ -203,6 +242,20 @@ describe('createPrinterSession', () => {
       const session = createPrinterSession({ port: 'port', density: 2, clientFactory: () => client });
       await assert.rejects(() => session.connect(), /Unsupported printer model/);
       // Because connect() failed, createTask must refuse to build a job.
+      assert.throws(() => session.createTask(), /requires a successful connect/);
+    }
+  });
+
+  test('with legacy-usb-connect the strict B1 model guard still rejects before any task', async () => {
+    for (const meta of [{ model: PrinterModel.UNKNOWN }, undefined]) {
+      const { client } = makeFakeClient(meta);
+      const session = createPrinterSession({
+        port: 'port',
+        density: 2,
+        legacyUsbConnect: true,
+        clientFactory: () => client,
+      });
+      await assert.rejects(() => session.connect(), /Unsupported printer model/);
       assert.throws(() => session.createTask(), /requires a successful connect/);
     }
   });

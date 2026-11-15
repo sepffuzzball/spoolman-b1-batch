@@ -37,6 +37,8 @@ Options:
   --dry-run           Render 320x240 preview PNGs without printing (no serial needed).
   --output-dir <dir>  Dry-run destination (must not already exist). Default: ./label-preview
   --yes               Skip the interactive confirmation (required when stdin is not a TTY).
+  --verbose           Print library wire-level trace to the terminal. Note: logs may contain label data.
+  --legacy-usb-connect  Experimental opt-in: skip the C1/C2 negotiation; B1 identity is still required.
   --help              Show this help and exit.
 
 Exit codes:
@@ -52,6 +54,8 @@ const OPTIONS = {
   'dry-run': { type: 'boolean', default: false },
   'output-dir': { type: 'string' },
   yes: { type: 'boolean', default: false },
+  verbose: { type: 'boolean', default: false },
+  'legacy-usb-connect': { type: 'boolean', default: false },
   help: { type: 'boolean', default: false },
 };
 
@@ -188,7 +192,7 @@ async function runDryRun({ pdfPath, pagesSpec, outputDir }) {
   }
 }
 
-async function runPrint({ pdfPath, pagesSpec, port, density, yes }) {
+async function runPrint({ pdfPath, pagesSpec, port, density, yes, verbose = false, legacyUsbConnect = false }) {
   const controller = new AbortController();
   const onSigint = () => controller.abort();
   process.on('SIGINT', onSigint);
@@ -286,7 +290,7 @@ async function runPrint({ pdfPath, pagesSpec, port, density, yes }) {
 
     const { runBatch, BatchPrintError } = await import('./batch.mjs');
 
-    const createSession = () => printer.createPrinterSession({ port, density });
+    const createSession = () => printer.createPrinterSession({ port, density, verbose, legacyUsbConnect });
     const onProgress = ({ page }) => {
       process.stdout.write(`  printed page ${page}\n`);
     };
@@ -396,6 +400,8 @@ async function main() {
     port: values.port,
     density: densityNum,
     yes: values.yes,
+    verbose: values.verbose,
+    legacyUsbConnect: values['legacy-usb-connect'],
   });
 }
 

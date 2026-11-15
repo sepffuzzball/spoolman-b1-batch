@@ -1,11 +1,11 @@
 import sharp from 'sharp';
 import {
-  NiimbotNodeSerialClient,
   ImageEncoder,
   PageColorType,
   LabelType,
   PrinterModel,
 } from '@mmote/niimbluelib';
+import { B1UsbClient } from './usb-client.mjs';
 
 const PNG_WIDTH = 320;
 const PNG_HEIGHT = 240;
@@ -72,6 +72,8 @@ export async function encodePage({ path }) {
  * @param {{
  *   port: string,
  *   density: number,
+ *   verbose?: boolean,
+ *   legacyUsbConnect?: boolean,
  *   clientFactory?: () => import('@mmote/niimbluelib').NiimbotNodeSerialClient
  * }} options
  * @returns {{
@@ -81,7 +83,13 @@ export async function encodePage({ path }) {
  *   createTask: () => import('@mmote/niimbluelib').AbstractPrintTask
  * }}
  */
-export function createPrinterSession({ port, density, clientFactory = () => new NiimbotNodeSerialClient() }) {
+export function createPrinterSession({
+  port,
+  density,
+  verbose = false,
+  legacyUsbConnect = false,
+  clientFactory = () => new B1UsbClient({ legacyUsbConnect }),
+}) {
   if (typeof port !== 'string' || port.trim() === '') {
     throw new Error('port must be a non-empty string');
   }
@@ -101,6 +109,12 @@ export function createPrinterSession({ port, density, clientFactory = () => new 
       // the port or attempting a native open.
       if (disposed) {
         throw new Error('printer session is closed');
+      }
+
+      // Verbose library logging is enabled only on explicit --verbose, and is
+      // set before the native open so the handshake itself is traced.
+      if (verbose) {
+        client.setDebug(true);
       }
 
       client.setPort(port);

@@ -23,3 +23,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# User-downloaded label PDFs (case-insensitive); keep versioned test fixtures tracked
+*.pdf
+*.PDF
+!test/fixtures/**/*.pdf
+!test/fixtures/**/*.PDF

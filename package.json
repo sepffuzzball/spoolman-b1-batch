@@ -13,7 +13,7 @@
   "scripts": {
     "start": "node src/cli.mjs",
     "test": "node --test test/*.test.mjs",
-    "lint": "node --check src/cli.mjs && node --check src/pdf.mjs && node --check src/batch.mjs && node --check src/printer.mjs"
+    "lint": "node --check src/cli.mjs && node --check src/pdf.mjs && node --check src/batch.mjs && node --check src/printer.mjs && node --check src/usb-client.mjs"
   },
   "dependencies": {
     "@mmote/niimbluelib": "0.47.0-node",

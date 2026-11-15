@@ -38,6 +38,8 @@ npm start -- <labels.pdf> [options]
 | `--dry-run` | Render 320x240 preview PNGs without printing (no serial needed). |
 | `--output-dir <dir>` | Dry-run destination; must not already exist and its parent must exist. Default: `./label-preview`. |
 | `--yes` | Skip the interactive confirmation (required when stdin is not a TTY). |
+| `--verbose` | Print the library wire-level trace to the terminal. Note: verbose logs may contain label data. |
+| `--legacy-usb-connect` | Experimental opt-in: skip the C1/C2 negotiation; B1 identity is still required (the full printer-info fetch and B1 model check still run). |
 | `--help` | Show help and exit. |
 
 Provide exactly one PDF positional argument. Pages are always printed in ascending
@@ -78,6 +80,42 @@ CLI asks `Print now? [y/N]` (default No). When stdin is not a TTY (scripts, CI)
 `--yes` is required, otherwise the CLI fails before touching the serial port.
 SIGINT during a print lets the in-flight label finish and exits with code 130, but
 pushes no labels after that.
+
+### Diagnostics
+
+If a print fails with a timeout, first run a single page with verbose library
+tracing:
+
+```sh
+npm start -- labels.pdf --pages 1 --verbose
+```
+
+The mandatory C1/C2 negotiation and the B1 identity check are never skipped by
+default; the strict handshake is retained exactly as before. The client already
+applies an ordering fix (it starts waiting for the response BEFORE flushing the
+request), so a response that arrives while the request is still being flushed is
+not dropped by the library's default ordering. `--verbose` only enables the
+library's wire-level trace - which logs via console.info to stdout, with warnings
+going to stderr - so you can inspect the exchange; the root cause of a real
+hardware timeout remains unconfirmed, and `--verbose` does not itself change any
+behaviour. No response is fabricated and nothing is bypassed. Note that verbose
+logs can contain label data (the printed content), so review the log output before
+sharing it.
+
+If the C1/C2 handshake still times out, you can knowingly opt in to an
+experimental compatibility mode that skips ONLY the connect negotiation:
+
+```sh
+npm start -- labels.pdf --pages 1 --legacy-usb-connect --verbose
+```
+
+This is an explicit opt-in (never an automatic fallback) for devices that do not
+answer the C1/C2 handshake; the cause and firmware support are unverified. It
+suppresses only the negotiation, never fabricates a model/connect-result/protocol
+version, and does not prove that the device truly lacks C2 - the B1 must still
+identify itself to the printer-info fetch and the strict B1 model guard, so later
+commands may still fail if the device does not answer. No hardware-tested claim is
+made here: it is an experimental switch to try, not a verified fix.
 
 ## Label PDF requirements
 
