@@ -1,0 +1,22 @@
+{
+  "name": "spoolman-b1-batch",
+  "version": "0.1.0",
+  "description": "Local CLI to render multi-page 40x30mm label PDFs and print them one-by-one to an NIIMBOT B1 USB label printer.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "spoolman-b1-batch": "src/cli.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test": "node --test test/*.test.mjs",
+    "lint": "node --check src/cli.mjs && node --check src/pdf.mjs && node --check src/batch.mjs && node --check src/printer.mjs"
+  },
+  "dependencies": {
+    "@mmote/niimbluelib": "0.47.0-node",
+    "sharp": "0.35.3"
+  }
+}

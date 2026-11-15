@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Dry-run preview output (default --output-dir)
+label-preview/
+
+# Preview output (documented example output)
+/preview/
+
+# Generated local knowledge graph / cache / metadata (keep on disk, do not publish)
+/graphify-out/
+
+# Logs
+logs/
+
+# Environment files (keep .env.example)
+.env
+.env.*
+!.env.example
+
+# Package-manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
