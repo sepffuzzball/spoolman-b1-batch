@@ -13,10 +13,12 @@
   "scripts": {
     "start": "node src/cli.mjs",
     "test": "node --test test/*.test.mjs",
-    "lint": "node --check src/cli.mjs && node --check src/pdf.mjs && node --check src/batch.mjs && node --check src/printer.mjs && node --check src/usb-client.mjs"
+    "lint": "node --check src/cli.mjs && node --check src/pdf.mjs && node --check src/batch.mjs && node --check src/printer.mjs && node --check src/usb-client.mjs && node --check src/usb-probe.mjs",
+    "usb:probe": "node src/usb-probe.mjs"
   },
   "dependencies": {
     "@mmote/niimbluelib": "0.47.0-node",
+    "serialport": "13.0.0",
     "sharp": "0.35.3"
   }
 }

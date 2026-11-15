@@ -117,6 +117,42 @@ identify itself to the printer-info fetch and the strict B1 model guard, so late
 commands may still fail if the device does not answer. No hardware-tested claim is
 made here: it is an experimental switch to try, not a verified fix.
 
+### Non-printing USB model probe
+
+If the CLI reports a timeout but you suspect the printer actually answered (the
+B1 reply can arrive "valid but late" - after the CLI's handshake timeout), run the
+non-printing diagnostic. It opens the serial port directly and sends **exactly one
+read-only model query** (`55 55 40 01 08 49 aa aa`); it never sends a print command
+and never does C1/C2, RFID, reset, motor or label traffic. Run it only with other
+printer applications closed; opening and closing a serial port can affect an
+active session.
+
+```sh
+npm run usb:probe -- --read-mode data
+```
+
+then repeat with the alternate receive path to compare transport behaviour:
+
+```sh
+npm run usb:probe -- --read-mode readable
+```
+
+Both accept `--port <path>` (default `/dev/ttyACM0`) and `--timeout-ms <ms>`
+(default `10000`, range 100..60000). Run `npm run usb:probe -- --help` for the
+full usage, and close any other app holding the printer open before running it
+(the port must be exclusive). The probe logs a monotonic timestamp for every
+event - open-request/open, the TX query, write/drain callbacks, every raw RX
+chunk, timeout/abort and close - which makes it possible to isolate whether the
+latency is in the transport or in the model reply. Please share the timestamps
+and the raw response hex when reporting back.
+
+A valid response reports the numeric model id and its hex form (e.g. B1 is
+`0x1000` = `4096`). If a response arrives after a timeout or an early
+close/abort, the probe logs it but does not change the (failed) result. This is a
+**diagnostic, not a fix** - it does not change the normal CLI/print pipeline and
+it needs real-device feedback to confirm whether the late reply is a transport or
+a firmware issue.
+
 ## Label PDF requirements
 
 Every *selected visible* page must be 40x30 mm (within a 0.5 mm tolerance), one
@@ -160,8 +196,9 @@ is 40x30 mm.
 
 ```sh
 npm test        # node --test test/*.test.mjs
-npm run lint    # syntax-check src/cli.mjs, pdf.mjs, batch.mjs, printer.mjs
+npm run lint    # syntax-check src/cli.mjs, pdf.mjs, batch.mjs, printer.mjs, usb-client.mjs, usb-probe.mjs
 npm start       # run the CLI directly
+npm run usb:probe   # non-printing USB model diagnostic (see above)
 ```
 
 The printer adapter is imported from `src/printer.mjs` only after a confirmed
