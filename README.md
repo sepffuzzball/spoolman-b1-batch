@@ -9,20 +9,51 @@ only talks to the printer over USB serial. No browser is needed.
 
 ## Prerequisites (Arch Linux)
 
-Install Node.js (>= 22), npm, and the Poppler utilities used to inspect and
-rasterize the PDF:
+Install the Poppler utilities used to inspect and rasterize the PDF:
 
 ```sh
-sudo pacman -S --needed nodejs npm poppler
+sudo pacman -S --needed poppler
 ```
 
-Then install the pinned dependency tree from the lockfile:
+Do not rely on the Arch `nodejs`/`npm` packages for the runtime: they can pull in
+Node 26, which has shown USB model-query timeouts on this setup. Install/select
+**Node 24 LTS** and its matching npm through your existing version manager (nvm,
+fnm, ...) or the official Node 24 distribution:
+
+https://nodejs.org/dist/latest-v24.x/
+
+Verify the actual runtime that `npm start` will use, BEFORE `npm ci` or printing:
+
+```sh
+node --version   # must report v24.x
+```
+
+Having Node 24 downloaded does not make `npm start` use it: `npm start` runs
+whatever `node` is first on `$PATH`. `npx --package=node@24 node --version` is not
+proof of the actual runtime either - the version must still be checked directly,
+since if npm 12 blocks that runtime package's installer the command falls through
+to your system `node`. Confirm the version above, then install the pinned
+dependency tree from the lockfile:
 
 ```sh
 npm ci
 ```
 
 The exact versions are pinned: `@mmote/niimbluelib@0.47.0-node` and `sharp@0.35.3`.
+
+### Standalone Node 24 binary
+
+If you downloaded the standalone Node 24 distribution instead of using a version
+manager, you can run the CLI without changing your global system Node. Replace
+`/path/to/node24/bin/node` with the real path to your Node 24 binary:
+
+```sh
+/path/to/node24/bin/node --version
+/path/to/node24/bin/node src/cli.mjs labels.pdf --pages 1
+```
+
+Omit `--pages 1` to print all pages instead. The Node 24 binary can run the CLI
+this way; your global `node` is left untouched.
 
 ## Usage
 
@@ -83,8 +114,9 @@ pushes no labels after that.
 
 ### Diagnostics
 
-If a print fails with a timeout, first run a single page with verbose library
-tracing:
+If a print fails with a timeout, first confirm the actual runtime is Node 24
+(`node --version` must report `v24.x`) before reaching for any handshake
+workaround, then run a single page with verbose library tracing:
 
 ```sh
 npm start -- labels.pdf --pages 1 --verbose
@@ -115,7 +147,9 @@ suppresses only the negotiation, never fabricates a model/connect-result/protoco
 version, and does not prove that the device truly lacks C2 - the B1 must still
 identify itself to the printer-info fetch and the strict B1 model guard, so later
 commands may still fail if the device does not answer. No hardware-tested claim is
-made here: it is an experimental switch to try, not a verified fix.
+made here: it is an experimental switch to try, not a verified fix. On the
+confirmed Node 24 setup the normal C1/C2 handshake works, so `--legacy-usb-connect`
+is not needed there; it stays an experimental opt-in for other devices.
 
 ### Non-printing USB model probe
 
@@ -135,6 +169,13 @@ then repeat with the alternate receive path to compare transport behaviour:
 
 ```sh
 npm run usb:probe -- --read-mode readable
+```
+
+The `npm run usb:probe` examples above assume the `node` on your `$PATH` is Node
+24. If you use the standalone Node 24 binary instead, call the probe directly:
+
+```sh
+/path/to/node24/bin/node src/usb-probe.mjs --read-mode data
 ```
 
 Both accept `--port <path>` (default `/dev/ttyACM0`) and `--timeout-ms <ms>`
@@ -166,7 +207,11 @@ is 40x30 mm.
 
 ## Safety and limits
 
-- The B1 device/firmware is **untested**; there is no automatic resume or retry.
+- The B1 has printed one label successfully on CachyOS with Node 24.22.3 (NIIMBOT
+  B1 on `/dev/ttyACM0`) using the normal C1/C2 handshake and no
+  `--legacy-usb-connect`. Large batches and other firmware are not yet verified:
+  print one label, then two queued, then the full batch. There is no automatic
+  resume or retry.
 - On a timeout or unconfirmed print failure the tool cancels status polling and
   closes the USB connection **without** sending a competing print-end, then stops
   the batch. The current label may still have printed: check the physical output,
